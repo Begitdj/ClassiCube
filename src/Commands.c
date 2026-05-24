@@ -109,9 +109,23 @@ cc_bool Commands_Execute(const cc_string* input) {
 	} else if (Server.IsSinglePlayer && String_CaselessStarts(input, &prefix)) {
 		/* /client[command] [args] */
 		offset = prefix.length;
-	} else if (Server.IsSinglePlayer && input->length && input->buffer[0] == '/') {
-		/* /[command] [args] */
-		offset = 1;
+	} else if (input->length && input->buffer[0] == '/') {
+		/* Разрешаем определенные команды для всех режимов, в т.ч. в мультиплеере */
+		cc_string text2, name2, value2;
+		text2 = String_UNSAFE_SubstringAt(input, 1);
+		String_UNSAFE_Separate(&text2, ' ', &name2, &value2);
+		
+		if (String_CaselessEqualsConst(&name2, "fly") || 
+		    String_CaselessEqualsConst(&name2, "speed") ||
+		    String_CaselessEqualsConst(&name2, "give") ||
+		    String_CaselessEqualsConst(&name2, "tp")) {
+			offset = 1;
+		} else if (Server.IsSinglePlayer) {
+			/* Для одиночки разрешаем все локальные команды через / */
+			offset = 1;
+		} else {
+			return false;
+		}
 	} else {
 		return false;
 	}
@@ -579,6 +593,92 @@ static struct ChatCommand ReplaceCommand = {
 
 
 /*########################################################################################################################*
+*------------------------------------------------------FlyCommand---------------------------------------------------------*
+*#########################################################################################################################*/
+static void FlyCommand_Execute(const cc_string* args, int argsCount) {
+	struct LocalPlayer* p = Entities.CurPlayer;
+	const char* state;
+	
+	p->Hacks.Flying = !p->Hacks.Flying;
+	state = p->Hacks.Flying ? "ON" : "OFF";
+	Chat_Add1("&e/client fly: &fFlying is now %c.", state);
+}
+
+static struct ChatCommand FlyCommand = {
+	"Fly", FlyCommand_Execute,
+	0,
+	{
+		"&a/client fly",
+		"&eToggles flying mode.",
+	}
+};
+
+
+/*########################################################################################################################*
+*------------------------------------------------------SpeedCommand-------------------------------------------------------*
+*#########################################################################################################################*/
+static void SpeedCommand_Execute(const cc_string* args, int argsCount) {
+	struct LocalPlayer* p = Entities.CurPlayer;
+	float speed = 0.0f;
+	
+	if (argsCount == 0) {
+		Chat_Add1("&e/client speed: &fCurrent speed multiplier is %f2", &p->Hacks.SpeedMultiplier);
+	} else if (!Convert_ParseFloat(&args[0], &speed) || speed < 0.1f || speed > 100.0f) {
+		Chat_AddRaw("&e/client speed: &cSpeed must be a decimal between 0.1 and 100.");
+	} else {
+		p->Hacks.SpeedMultiplier = speed;
+		Chat_Add1("&e/client speed: &fSpeed multiplier set to %f2", &speed);
+	}
+}
+
+static struct ChatCommand SpeedCommand = {
+	"Speed", SpeedCommand_Execute,
+	0,
+	{
+		"&a/client speed [multiplier]",
+		"&eSets your movement speed multiplier.",
+	}
+};
+
+
+/*########################################################################################################################*
+*------------------------------------------------------GiveCommand--------------------------------------------------------*
+*#########################################################################################################################*/
+static void GiveCommand_Execute(const cc_string* args, int argsCount) {
+	cc_string name;
+	int block;
+
+	if (argsCount == 0) {
+		Chat_AddRaw("&e/client give: &cYou didn't specify a block.");
+		return;
+	}
+
+	block = Block_Parse(&args[0]);
+	if (block == -1) {
+		Chat_AddRaw("&e/client give: &cCould not parse block.");
+		return;
+	}
+	if (block > Game_Version.MaxCoreBlock && !Block_IsCustomDefined(block)) {
+		Chat_Add1("&e/client give: &cThere is no block with id \"%i\".", &block); 
+		return;
+	}
+	
+	Inventory_SelectedBlock = block;
+	name = Block_UNSAFE_GetName(block);
+	Chat_Add1("&e/client give: &fGiven block %s.", &name);
+}
+
+static struct ChatCommand GiveCommand = {
+	"Give", GiveCommand_Execute,
+	0,
+	{
+		"&a/client give [block]",
+		"&eGives you the specified block.",
+	}
+};
+
+
+/*########################################################################################################################*
 *------------------------------------------------------TeleportCommand----------------------------------------------------*
 *#########################################################################################################################*/
 static void TeleportCommand_Execute(const cc_string* args, int argsCount) {
@@ -602,7 +702,7 @@ static void TeleportCommand_Execute(const cc_string* args, int argsCount) {
 
 static struct ChatCommand TeleportCommand = {
 	"TP", TeleportCommand_Execute,
-	COMMAND_FLAG_SINGLEPLAYER_ONLY,
+	0, /* <-- Флаг был изменен на 0, чтобы команда работала везде */
 	{
 		"&a/client tp [x y z]",
 		"&eMoves you to the given coordinates.",
@@ -815,6 +915,11 @@ static void OnInit(void) {
 	Commands_Register(&BlockEditCommand);
 	Commands_Register(&CuboidCommand);
 	Commands_Register(&ReplaceCommand);
+	
+	/* Регистрация новых глобальных команд */
+	Commands_Register(&FlyCommand);
+	Commands_Register(&SpeedCommand);
+	Commands_Register(&GiveCommand);
 }
 
 static void OnFree(void) {
