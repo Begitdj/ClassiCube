@@ -52,13 +52,11 @@ static cc_string logPath = String_FromArray(logPathBuffer);
 static struct Stream logStream;
 static int lastLogDay, lastLogMonth, lastLogYear;
 
-/* Resets log name to empty and resets last log date */
 static void ResetLogFile(void) {
 	logName.length = 0;
 	lastLogYear    = -123;
 }
 
-/* Closes handle to the chat log file */
 static void CloseLogFile(void) {
 	cc_result res;
 	if (!logStream.meta.file) return;
@@ -67,7 +65,6 @@ static void CloseLogFile(void) {
 	if (res) { Logger_SysWarn2(res, "closing", &logPath); }
 }
 
-/* Whether the given character is an allowed in a log filename */
 static cc_bool AllowedLogNameChar(char c) {
 	return
 		c == '{' || c == '}' || c == '[' || c == ']' || c == '(' || c == ')' ||
@@ -85,7 +82,7 @@ void Chat_SetLogName(const cc_string* name) {
 		if (AllowedLogNameChar(c)) {
 			String_Append(&logName, c);
 		} else if (c == '&') {
-			i++; /* skip over following color code */
+			i++; 
 		}
 	}
 }
@@ -101,17 +98,7 @@ static cc_bool CreateLogsDirectory(void) {
 	static const cc_string dir = String_FromConst("logs");
 	cc_filepath raw_dir;
 	cc_result res;
-	/* Utils_EnsureDirectory cannot be used here because it causes a stack overflow  */
-	/* when running the game and an error occurs when trying to create the directory */
-	/* This happens because when running the game, Logger_WarnFunc is changed to log */
-	/* a message in chat instead of showing a dialog box, which causes the following */
-	/* functions to be called in a recursive loop: */
-	/*                                                                                         */
-	/* Utils_EnsureDirectory --> Logger_IOWarn2 --> Chat_Add --> AppendChatLog -> OpenChatLog */
-	/*  --> Utils_EnsureDirectory --> Logger_IOWarn2 --> Chat_Add --> AppendChatLog -> OpenChatLog */
-	/*       --> Utils_EnsureDirectory --> Logger_IOWarn2 --> Chat_Add --> AppendChatLog -> OpenChatLog */
-	/*            --> Utils_EnsureDirectory --> Logger_IOWarn2 --> Chat_Add --> AppendChatLog ... */
-	/* and so on, until eventually the stack overflows */
+	
 	Platform_EncodePath(&raw_dir, &dir);
 	res = Directory_Create2(&raw_dir);
 	if (!res || res == ReturnCode_DirectoryExists) return true;
@@ -127,7 +114,6 @@ static void OpenChatLog(struct cc_datetime* now) {
 	int i;
 	if (Platform_ReadonlyFilesystem || !CreateLogsDirectory()) return;
 
-	/* Ensure multiple instances do not end up overwriting each other's log entries. */
 	for (i = 0; i < 20; i++) {
 		logPath.length = 0;
 		String_Format3(&logPath, "logs/%p4-%p2-%p2 ", &now->year, &now->month, &now->day);
@@ -171,7 +157,6 @@ static void AppendChatLog(const cc_string* text) {
 	lastLogDay = now.day; lastLogMonth = now.month; lastLogYear = now.year;
 	if (!logStream.meta.file) return;
 
-	/* [HH:mm:ss] text */
 	String_InitArray(str, strBuffer);
 	String_Format3(&str, "[%p2:%p2:%p2] ", &now.hour, &now.minute, &now.second);
 	Drawer2D_WithoutColors(&str, text);
@@ -208,16 +193,11 @@ void Chat_Add(const cc_string* text) { Chat_AddOf(text, MSG_TYPE_NORMAL); }
 void Chat_AddOf(const cc_string* text, int msgType) {
 	cc_string str;
 	if (msgType == MSG_TYPE_NORMAL) {
-		/* Check for chat overflow (see issue #837) */
-		/* This happens because Offset/Length are packed into a single 32 bit value, */
-		/*  with 9 bits used for length. Hence if offset exceeds 2^23 (8388608), it */
-		/*  overflows and earlier chat messages start wrongly appearing instead */
 		if (Chat_Log.totalLength > 8388000) {
 			ClearChatLogs();
 			Chat_AddRaw("&cChat log cleared as it hit 8.3 million character limit");
 		}
 
-		/* StringsBuffer_Add will abort game if try to add string > 511 characters */
 		str        = *text; 
 		str.length = min(str.length, DRAWER2D_MAX_TEXT_LENGTH);
 
@@ -225,8 +205,6 @@ void Chat_AddOf(const cc_string* text, int msgType) {
 		AppendChatLog(&str);
 		StringsBuffer_Add(&Chat_Log, &str);
 	} else if (msgType >= MSG_TYPE_STATUS_1 && msgType <= MSG_TYPE_STATUS_3) {
-		/* Status[0] is for texture pack downloading message */
-		/* Status[1] is for reduced performance mode message */
 		String_Copy(&Chat_Status[2 + (msgType - MSG_TYPE_STATUS_1)], text);
 	} else if (msgType >= MSG_TYPE_BOTTOMRIGHT_1 && msgType <= MSG_TYPE_BOTTOMRIGHT_3) {	
 		String_Copy(&Chat_BottomRight[msgType - MSG_TYPE_BOTTOMRIGHT_1], text);
@@ -248,12 +226,7 @@ void Chat_AddOf(const cc_string* text, int msgType) {
 	Event_RaiseChat(&ChatEvents.ChatReceived, text, msgType);
 }
 
-
-/*########################################################################################################################*
-*-------------------------------------------------------Generic chat------------------------------------------------------*
-*#########################################################################################################################*/
 static void LogInputUsage(const cc_string* text) {
-	/* Simplify navigating through input history by not logging duplicate entries */
 	if (Chat_InputLog.count) {
 		int lastIndex  = Chat_InputLog.count - 1;
 		cc_string last = StringsBuffer_UNSAFE_Get(&Chat_InputLog, lastIndex);
@@ -275,8 +248,6 @@ void Chat_Send(const cc_string* text, cc_bool logUsage) {
 
 static void OnInit(void) {
 #if defined CC_BUILD_MOBILE || defined CC_BUILD_WEB
-	/* Better to not log chat by default on mobile/web, */
-	/* since it's not easily visible to end users */
 	Chat_Logging = Options_GetBool(OPT_CHAT_LOGGING, false);
 #else
 	Chat_Logging = Options_GetBool(OPT_CHAT_LOGGING, true);
@@ -299,6 +270,9 @@ static void OnReset(void) {
 	CloseLogFile();
 	ResetLogFile();
 	ClearCPEMessages();
+	
+	/* WELCOME MESSAGE */
+	Chat_AddRaw("&eTeraCota Client &floaded!");
 }
 
 static void OnFree(void) {
