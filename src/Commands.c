@@ -629,26 +629,6 @@ static struct ChatCommand NoclipCommand = {
 };
 
 /*########################################################################################################################*
-*------------------------------------------------------FastBreakCommand---------------------------------------------------*
-*#########################################################################################################################*/
-static void FastBreakCommand_Execute(const cc_string* args, int argsCount) {
-	struct LocalPlayer* p = Entities.CurPlayer;
-	
-	p->Hacks.CanFastBuild = true;
-	p->Hacks.FastBuild = !p->Hacks.FastBuild;
-	Chat_Add1("&eTeraCota Client: &fFastBreak is now %c.", p->Hacks.FastBuild ? "ENABLED" : "DISABLED");
-}
-
-static struct ChatCommand FastBreakCommand = {
-	"FastBreak", FastBreakCommand_Execute,
-	0,
-	{
-		"&a/client fastbreak",
-		"&eToggles instant block breaking and placing.",
-	}
-};
-
-/*########################################################################################################################*
 *------------------------------------------------------GiveCommand--------------------------------------------------------*
 *#########################################################################################################################*/
 static void GiveCommand_Execute(const cc_string* args, int argsCount) {
@@ -863,7 +843,6 @@ static void OnInit(void) {
 	Commands_Register(&FlyCommand);
 	Commands_Register(&SpeedCommand);
 	Commands_Register(&NoclipCommand);
-	Commands_Register(&FastBreakCommand);
 	Commands_Register(&GiveCommand);
 }
 
