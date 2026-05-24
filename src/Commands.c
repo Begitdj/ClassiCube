@@ -33,7 +33,6 @@ void Commands_Unregister(struct ChatCommand* cmd) {
 	LinkedList_Remove(cmd, cur, cmds_head, cmds_tail);
 }
 
-
 /*########################################################################################################################*
 *------------------------------------------------------Command handling---------------------------------------------------*
 *#########################################################################################################################*/
@@ -54,15 +53,15 @@ static struct ChatCommand* Commands_FindMatch(const cc_string* cmdName) {
 		if (!String_CaselessStarts(&name, cmdName)) continue;
 
 		if (match) {
-			Chat_Add1("&e/client: Multiple commands found that start with: \"&f%s&e\".", cmdName);
+			Chat_Add1("&eTeraCota Client: Multiple commands found that start with: \"&f%s&e\".", cmdName);
 			return NULL;
 		}
 		match = cmd;
 	}
 
 	if (!match) {
-		Chat_Add1("&e/client: Unrecognised command: \"&f%s&e\".", cmdName);
-		Chat_AddRaw("&e/client: Type &a/client &efor a list of commands.");
+		Chat_Add1("&eTeraCota Client: Unrecognised command: \"&f%s&e\".", cmdName);
+		Chat_AddRaw("&eTeraCota Client: Type &a/client help &efor a list of commands.");
 	}
 	return match;
 }
@@ -72,7 +71,7 @@ static void Commands_PrintDefault(void) {
 	struct ChatCommand* cmd;
 	cc_string name;
 
-	Chat_AddRaw("&eList of client commands:");
+	Chat_AddRaw("&eTeraCota Client commands:");
 	String_InitArray(str, strBuffer);
 
 	for (cmd = cmds_head; cmd; cmd = cmd->next) {
@@ -101,27 +100,24 @@ cc_bool Commands_Execute(const cc_string* input) {
 	cc_string args[50];
 
 	if (String_CaselessStarts(input, &prefixSpace)) { 
-		/* /client [command] [args] */
 		offset = prefixSpace.length;
 	} else if (String_CaselessEquals(input, &prefix)) { 
-		/* /client */
 		offset = prefix.length;
 	} else if (Server.IsSinglePlayer && String_CaselessStarts(input, &prefix)) {
-		/* /client[command] [args] */
 		offset = prefix.length;
 	} else if (input->length && input->buffer[0] == '/') {
-		/* Разрешаем определенные команды для всех режимов, в т.ч. в мультиплеере */
 		cc_string text2, name2, value2;
 		text2 = String_UNSAFE_SubstringAt(input, 1);
 		String_UNSAFE_Separate(&text2, ' ', &name2, &value2);
 		
 		if (String_CaselessEqualsConst(&name2, "fly") || 
 		    String_CaselessEqualsConst(&name2, "speed") ||
+		    String_CaselessEqualsConst(&name2, "noclip") ||
+		    String_CaselessEqualsConst(&name2, "fastbreak") ||
 		    String_CaselessEqualsConst(&name2, "give") ||
 		    String_CaselessEqualsConst(&name2, "tp")) {
 			offset = 1;
 		} else if (Server.IsSinglePlayer) {
-			/* Для одиночки разрешаем все локальные команды через / */
 			offset = 1;
 		} else {
 			return false;
@@ -131,7 +127,6 @@ cc_bool Commands_Execute(const cc_string* input) {
 	}
 
 	text = String_UNSAFE_SubstringAt(input, offset);
-	/* Check for only / or /client */
 	if (!text.length) { Commands_PrintDefault(); return true; }
 
 	String_UNSAFE_Separate(&text, ' ', &name, &value);
@@ -139,12 +134,11 @@ cc_bool Commands_Execute(const cc_string* input) {
 	if (!cmd) return true;
 
 	if ((cmd->flags & COMMAND_FLAG_SINGLEPLAYER_ONLY) && !Server.IsSinglePlayer) {
-		Chat_Add1("&e/client: \"&f%s&e\" can only be used in singleplayer.", &name);
+		Chat_Add1("&eTeraCota Client: \"&f%s&e\" can only be used in singleplayer.", &name);
 		return true;
 	}
 
 	if (cmd->flags & COMMAND_FLAG_UNSPLIT_ARGS) {
-		/* argsCount = 0 if value.length is 0, 1 otherwise */
 		cmd->Execute(&value, value.length != 0);
 	} else {
 		count = String_UNSAFE_Split(&value, ' ', args, Array_Elems(args));
@@ -204,16 +198,16 @@ static struct ChatCommand GpuInfoCommand = {
 static void RenderTypeCommand_Execute(const cc_string* args, int argsCount) {
 	int flags;
 	if (!argsCount) {
-		Chat_AddRaw("&e/client: &cYou didn't specify a new render type."); return;
+		Chat_AddRaw("&eTeraCota Client: &cYou didn't specify a new render type."); return;
 	}
 
 	flags = EnvRenderer_CalcFlags(args);
 	if (flags >= 0) {
 		EnvRenderer_SetMode(flags);
 		Options_Set(OPT_RENDER_TYPE, args);
-		Chat_Add1("&e/client: &fRender type is now %s.", args);
+		Chat_Add1("&eTeraCota Client: &fRender type is now %s.", args);
 	} else {
-		Chat_Add1("&e/client: &cUnrecognised render type &f\"%s\"&c.", args);
+		Chat_Add1("&eTeraCota Client: &cUnrecognised render type &f\"%s\"&c.", args);
 	}
 }
 
@@ -222,9 +216,8 @@ static struct ChatCommand RenderTypeCommand = {
 	COMMAND_FLAG_UNSPLIT_ARGS,
 	{
 		"&a/client rendertype [normal/legacy/fast]",
-		"&bnormal: &eDefault render mode, with all environmental effects enabled",
+		"&bnormal: &eDefault render mode",
 		"&blegacy: &eSame as normal mode, &cbut is usually slightly slower",
-		"   &eIf you have issues with clouds and map edges disappearing randomly, use this mode",
 		"&bfast: &eSacrifices clouds, fog and overhead sky for faster performance",
 	}
 };
@@ -232,15 +225,14 @@ static struct ChatCommand RenderTypeCommand = {
 static void ResolutionCommand_Execute(const cc_string* args, int argsCount) {
 	int width, height;
 	if (argsCount < 2) {
-		Chat_Add4("&e/client: &fCurrent resolution is %i@%f2 x %i@%f2", 
+		Chat_Add4("&eTeraCota Client: &fCurrent resolution is %i@%f2 x %i@%f2", 
 				&Window_Main.Width, &DisplayInfo.ScaleX, &Window_Main.Height, &DisplayInfo.ScaleY);
 	} else if (!Convert_ParseInt(&args[0], &width) || !Convert_ParseInt(&args[1], &height)) {
-		Chat_AddRaw("&e/client: &cWidth and height must be integers.");
+		Chat_AddRaw("&eTeraCota Client: &cWidth and height must be integers.");
 	} else if (width <= 0 || height <= 0) {
-		Chat_AddRaw("&e/client: &cWidth and height must be above 0.");
+		Chat_AddRaw("&eTeraCota Client: &cWidth and height must be above 0.");
 	} else {
 		Window_SetSize(width, height);
-		/* Window_Create uses these, but scales by DPI. Hence DPI unscale them here. */
 		Options_SetInt(OPT_WINDOW_WIDTH,  (int)(width  / DisplayInfo.ScaleX));
 		Options_SetInt(OPT_WINDOW_HEIGHT, (int)(height / DisplayInfo.ScaleY));
 	}
@@ -259,7 +251,7 @@ static void ModelCommand_Execute(const cc_string* args, int argsCount) {
 	if (argsCount) {
 		Entity_SetModel(&Entities.CurPlayer->Base, args);
 	} else {
-		Chat_AddRaw("&e/client model: &cYou didn't specify a model name.");
+		Chat_AddRaw("&eTeraCota Client: &cYou didn't specify a model name.");
 	}
 }
 
@@ -277,7 +269,7 @@ static void SkinCommand_Execute(const cc_string* args, int argsCount) {
 	if (argsCount) {
 		Entity_SetSkin(&Entities.CurPlayer->Base, args);
 	} else {
-		Chat_AddRaw("&e/client skin: &cYou didn't specify a skin name.");
+		Chat_AddRaw("&eTeraCota Client: &cYou didn't specify a skin name.");
 	}
 }
 
@@ -308,7 +300,7 @@ static struct ChatCommand ClearDeniedCommand = {
 
 static void MotdCommand_Execute(const cc_string* args, int argsCount) {
 	if (Server.IsSinglePlayer) {
-		Chat_AddRaw("&eThis command can only be used in multiplayer.");
+		Chat_AddRaw("&eTeraCota Client: This command can only be used in multiplayer.");
 		return;
 	}
 	Chat_Add1("&eName: &f%s", &Server.Name);
@@ -327,7 +319,6 @@ static struct ChatCommand MotdCommand = {
 /*#######################################################################################################################*
 *-------------------------------------------------------PlaceCommand-----------------------------------------------------*
 *########################################################################################################################*/
-
 static void PlaceCommand_Execute(const cc_string* args, int argsCount) {
 	cc_string name;
 	cc_uint8 off;
@@ -335,25 +326,25 @@ static void PlaceCommand_Execute(const cc_string* args, int argsCount) {
 	IVec3 pos;
 	
 	if (argsCount == 2) {
-		Chat_AddRaw("&eToo few arguments.");
+		Chat_AddRaw("&eTeraCota Client: Too few arguments.");
 		return;
 	}
 	
 	block = !argsCount || argsCount == 3 ? Inventory_SelectedBlock : Block_Parse(&args[0]);
 	
 	if (block == -1) {
-		Chat_AddRaw("&eCould not parse block.");
+		Chat_AddRaw("&eTeraCota Client: Could not parse block.");
 		return;
 	}
 	if (block > Game_Version.MaxCoreBlock && !Block_IsCustomDefined(block)) {
-		Chat_Add1("&eThere is no block with id \"%i\".", &block); 
+		Chat_Add1("&eTeraCota Client: There is no block with id \"%i\".", &block); 
 		return;
 	}
 	
 	if (argsCount > 2) {
 		off = argsCount == 4;
 		if (!Convert_ParseInt(&args[0 + off], &pos.x) || !Convert_ParseInt(&args[1 + off], &pos.y) || !Convert_ParseInt(&args[2 + off], &pos.z)) {
-			Chat_AddRaw("&eCould not parse coordinates.");
+			Chat_AddRaw("&eTeraCota Client: Could not parse coordinates.");
 			return;
 		}
 	} else {
@@ -361,13 +352,13 @@ static void PlaceCommand_Execute(const cc_string* args, int argsCount) {
 	}
 	
 	if (!World_Contains(pos.x, pos.y, pos.z)) {
-		Chat_AddRaw("&eCoordinates are outside the world boundaries.");
+		Chat_AddRaw("&eTeraCota Client: Coordinates are outside the world boundaries.");
 		return;
 	}
 	
 	Game_ChangeBlock(pos.x, pos.y, pos.z, block);
 	name = Block_UNSAFE_GetName(block);
-	Chat_Add4("&eSuccessfully placed %s block at (%i, %i, %i).", &name, &pos.x, &pos.y, &pos.z);
+	Chat_Add4("&eTeraCota Client: &fSuccessfully placed %s block at (%i, %i, %i).", &name, &pos.x, &pos.y, &pos.z);
 }
 
 static struct ChatCommand PlaceCommand = {
@@ -376,14 +367,11 @@ static struct ChatCommand PlaceCommand = {
 	{
 		"&a/client place [block] [x y z]",
 		"&ePlaces block at [x y z].",
-		"&eIf no block is provided, held block is used.",
-		"&eIf no coordinates are provided, current",
-		"&e coordinates are used."
 	}
 };
 
 /*########################################################################################################################*
-*-------------------------------------------------------DrawOpCommand-----------------------------------------------------*
+*-------------------------------------------------------DrawOps & Cuboid & Replace----------------------------------------*
 *#########################################################################################################################*/
 static IVec3 drawOp_mark1, drawOp_mark2;
 static cc_bool drawOp_persist, drawOp_hooked, drawOp_hasMark1;
@@ -396,7 +384,6 @@ static void DrawOpCommand_ResetState(void) {
 		Event_Unregister_(&UserEvents.BlockChanged, NULL, DrawOpCommand_BlockChanged);
 		drawOp_hooked = false;
 	}
-
 	drawOp_hasMark1 = false;
 }
 
@@ -404,13 +391,12 @@ static void DrawOpCommand_Begin(void) {
 	cc_string msg; char msgBuffer[STRING_SIZE];
 	String_InitArray(msg, msgBuffer);
 
-	String_Format1(&msg, "&e%c: &fPlace or delete a block.", drawOp_name);
+	String_Format1(&msg, "&eTeraCota Client (%c): &fPlace or delete a block.", drawOp_name);
 	Chat_AddOf(&msg, MSG_TYPE_CLIENTSTATUS_1);
 
 	Event_Register_(&UserEvents.BlockChanged, NULL, DrawOpCommand_BlockChanged);
 	drawOp_hooked = true;
 }
-
 
 static void DrawOpCommand_Execute(void) {
 	IVec3 min, max;
@@ -432,7 +418,7 @@ static void DrawOpCommand_BlockChanged(void* obj, IVec3 coords, BlockID old, Blo
 		drawOp_mark1    = coords;
 		drawOp_hasMark1 = true;
 
-		String_Format4(&msg, "&e%c: &fMark 1 placed at (%i, %i, %i), place mark 2.", 
+		String_Format4(&msg, "&eTeraCota Client (%c): &fMark 1 placed at (%i, %i, %i), place mark 2.", 
 						drawOp_name, &coords.x, &coords.y, &coords.z);
 		Chat_AddOf(&msg, MSG_TYPE_CLIENTSTATUS_1);
 	} else {
@@ -463,21 +449,17 @@ static int DrawOpCommand_ParseBlock(const cc_string* arg) {
 	int block = Block_Parse(arg);
 
 	if (block == -1) {
-		Chat_Add2("&e%c: &c\"%s\" is not a valid block name or id.", drawOp_name, arg); 
+		Chat_Add2("&eTeraCota Client (%c): &c\"%s\" is not a valid block name or id.", drawOp_name, arg); 
 		return -1;
 	}
 
 	if (block > Game_Version.MaxCoreBlock && !Block_IsCustomDefined(block)) {
-		Chat_Add2("&e%c: &cThere is no block with id \"%s\".", drawOp_name, arg); 
+		Chat_Add2("&eTeraCota Client (%c): &cThere is no block with id \"%s\".", drawOp_name, arg); 
 		return -1;
 	}
 	return block;
 }
 
-
-/*########################################################################################################################*
-*-------------------------------------------------------CuboidCommand-----------------------------------------------------*
-*#########################################################################################################################*/
 static int cuboid_block;
 
 static void CuboidCommand_Draw(IVec3 min, IVec3 max) {
@@ -498,19 +480,16 @@ static void CuboidCommand_Draw(IVec3 min, IVec3 max) {
 
 static void CuboidCommand_Execute(const cc_string* args, int argsCount) {
 	cc_string value = *args;
-
 	DrawOpCommand_ResetState();
 	drawOp_name = "Cuboid";
 	drawOp_Func = CuboidCommand_Draw;
-
 	DrawOpCommand_ExtractPersistArg(&value);
-	cuboid_block = -1; /* Default to cuboiding with currently held block */
+	cuboid_block = -1;
 
 	if (value.length) {
 		cuboid_block = DrawOpCommand_ParseBlock(&value);
 		if (cuboid_block == -1) return;
 	}
-
 	DrawOpCommand_Begin();
 }
 
@@ -520,16 +499,9 @@ static struct ChatCommand CuboidCommand = {
 	{
 		"&a/client cuboid [block] [persist]",
 		"&eFills the 3D rectangle between two points with [block].",
-		"&eIf no block is given, uses your currently held block.",
-		"&e  If persist is given and is \"yes\", then the command",
-		"&e  will repeatedly cuboid, without needing to be typed in again.",
 	}
 };
 
-
-/*########################################################################################################################*
-*-------------------------------------------------------ReplaceCommand-----------------------------------------------------*
-*#########################################################################################################################*/
 static int replace_source, replace_target;
 
 static void ReplaceCommand_Draw(IVec3 min, IVec3 max) {
@@ -559,12 +531,11 @@ static void ReplaceCommand_Execute(const cc_string* args, int argsCount) {
 	DrawOpCommand_ResetState();
 	drawOp_name = "Replace";
 	drawOp_Func = ReplaceCommand_Draw;
-
 	DrawOpCommand_ExtractPersistArg(&value);
-	replace_target = -1; /* Default to replacing with currently held block */
+	replace_target = -1;
 
 	if (!value.length) {
-		Chat_AddRaw("&eReplace: &cAt least one argument is required"); return;
+		Chat_AddRaw("&eTeraCota Client (Replace): &cAt least one argument is required"); return;
 	}
 	count = String_UNSAFE_Split(&value, ' ', parts, 2);
 
@@ -575,7 +546,6 @@ static void ReplaceCommand_Execute(const cc_string* args, int argsCount) {
 		replace_target = DrawOpCommand_ParseBlock(&parts[1]);
 		if (replace_target == -1) return;
 	}
-
 	DrawOpCommand_Begin();
 }
 
@@ -585,23 +555,17 @@ static struct ChatCommand ReplaceCommand = {
 	{
 		"&a/client replace [source] [replacement] [persist]",
 		"&eReplaces all [source] blocks between two points with [replacement].",
-		"&eIf no [replacement] is given, replaces with your currently held block.",
-		"&e  If persist is given and is \"yes\", then the command",
-		"&e  will repeatedly replace, without needing to be typed in again.",
 	}
 };
-
 
 /*########################################################################################################################*
 *------------------------------------------------------FlyCommand---------------------------------------------------------*
 *#########################################################################################################################*/
 static void FlyCommand_Execute(const cc_string* args, int argsCount) {
 	struct LocalPlayer* p = Entities.CurPlayer;
-	const char* state;
 	
 	p->Hacks.Flying = !p->Hacks.Flying;
-	state = p->Hacks.Flying ? "ON" : "OFF";
-	Chat_Add1("&e/client fly: &fFlying is now %c.", state);
+	Chat_Add1("&eTeraCota Client: &fFly is now %c.", p->Hacks.Flying ? "ENABLED" : "DISABLED");
 }
 
 static struct ChatCommand FlyCommand = {
@@ -613,7 +577,6 @@ static struct ChatCommand FlyCommand = {
 	}
 };
 
-
 /*########################################################################################################################*
 *------------------------------------------------------SpeedCommand-------------------------------------------------------*
 *#########################################################################################################################*/
@@ -622,12 +585,18 @@ static void SpeedCommand_Execute(const cc_string* args, int argsCount) {
 	float speed = 0.0f;
 	
 	if (argsCount == 0) {
-		Chat_Add1("&e/client speed: &fCurrent speed multiplier is %f2", &p->Hacks.SpeedMultiplier);
+		if (p->Hacks.SpeedMultiplier <= 1.0f) {
+			p->Hacks.SpeedMultiplier = 5.0f;
+			Chat_AddRaw("&eTeraCota Client: &aSpeed ENABLED &f(x5.0)");
+		} else {
+			p->Hacks.SpeedMultiplier = 1.0f;
+			Chat_AddRaw("&eTeraCota Client: &cSpeed DISABLED &f(x1.0)");
+		}
 	} else if (!Convert_ParseFloat(&args[0], &speed) || speed < 0.1f || speed > 100.0f) {
-		Chat_AddRaw("&e/client speed: &cSpeed must be a decimal between 0.1 and 100.");
+		Chat_AddRaw("&eTeraCota Client: &cSpeed must be a decimal between 0.1 and 100.");
 	} else {
 		p->Hacks.SpeedMultiplier = speed;
-		Chat_Add1("&e/client speed: &fSpeed multiplier set to %f2", &speed);
+		Chat_Add1("&eTeraCota Client: &fSpeed set to x%f2", &speed);
 	}
 }
 
@@ -636,10 +605,48 @@ static struct ChatCommand SpeedCommand = {
 	0,
 	{
 		"&a/client speed [multiplier]",
-		"&eSets your movement speed multiplier.",
+		"&eToggles speed or sets custom speed multiplier.",
 	}
 };
 
+/*########################################################################################################################*
+*------------------------------------------------------NoclipCommand------------------------------------------------------*
+*#########################################################################################################################*/
+static void NoclipCommand_Execute(const cc_string* args, int argsCount) {
+	struct LocalPlayer* p = Entities.CurPlayer;
+	
+	p->Hacks.Noclip = !p->Hacks.Noclip;
+	Chat_Add1("&eTeraCota Client: &fNoclip is now %c.", p->Hacks.Noclip ? "ENABLED" : "DISABLED");
+}
+
+static struct ChatCommand NoclipCommand = {
+	"Noclip", NoclipCommand_Execute,
+	0,
+	{
+		"&a/client noclip",
+		"&eToggles noclip mode (walk through walls).",
+	}
+};
+
+/*########################################################################################################################*
+*------------------------------------------------------FastBreakCommand---------------------------------------------------*
+*#########################################################################################################################*/
+static void FastBreakCommand_Execute(const cc_string* args, int argsCount) {
+	struct LocalPlayer* p = Entities.CurPlayer;
+	
+	p->Hacks.CanFastBuild = true;
+	p->Hacks.FastBuild = !p->Hacks.FastBuild;
+	Chat_Add1("&eTeraCota Client: &fFastBreak is now %c.", p->Hacks.FastBuild ? "ENABLED" : "DISABLED");
+}
+
+static struct ChatCommand FastBreakCommand = {
+	"FastBreak", FastBreakCommand_Execute,
+	0,
+	{
+		"&a/client fastbreak",
+		"&eToggles instant block breaking and placing.",
+	}
+};
 
 /*########################################################################################################################*
 *------------------------------------------------------GiveCommand--------------------------------------------------------*
@@ -649,23 +656,23 @@ static void GiveCommand_Execute(const cc_string* args, int argsCount) {
 	int block;
 
 	if (argsCount == 0) {
-		Chat_AddRaw("&e/client give: &cYou didn't specify a block.");
+		Chat_AddRaw("&eTeraCota Client: &cYou didn't specify a block.");
 		return;
 	}
 
 	block = Block_Parse(&args[0]);
 	if (block == -1) {
-		Chat_AddRaw("&e/client give: &cCould not parse block.");
+		Chat_AddRaw("&eTeraCota Client: &cCould not parse block.");
 		return;
 	}
 	if (block > Game_Version.MaxCoreBlock && !Block_IsCustomDefined(block)) {
-		Chat_Add1("&e/client give: &cThere is no block with id \"%i\".", &block); 
+		Chat_Add1("&eTeraCota Client: &cThere is no block with id \"%i\".", &block); 
 		return;
 	}
 	
 	Inventory_SelectedBlock = block;
 	name = Block_UNSAFE_GetName(block);
-	Chat_Add1("&e/client give: &fGiven block %s.", &name);
+	Chat_Add1("&eTeraCota Client: &fGiven block %s.", &name);
 }
 
 static struct ChatCommand GiveCommand = {
@@ -677,7 +684,6 @@ static struct ChatCommand GiveCommand = {
 	}
 };
 
-
 /*########################################################################################################################*
 *------------------------------------------------------TeleportCommand----------------------------------------------------*
 *#########################################################################################################################*/
@@ -687,11 +693,11 @@ static void TeleportCommand_Execute(const cc_string* args, int argsCount) {
 	Vec3 v;
 
 	if (argsCount != 3) {
-		Chat_AddRaw("&e/client teleport: &cYou didn't specify X, Y and Z coordinates.");
+		Chat_AddRaw("&eTeraCota Client: &cYou didn't specify X, Y and Z coordinates.");
 		return;
 	}
 	if (!Convert_ParseFloat(&args[0], &v.x) || !Convert_ParseFloat(&args[1], &v.y) || !Convert_ParseFloat(&args[2], &v.z)) {
-		Chat_AddRaw("&e/client teleport: &cCoordinates must be decimals");
+		Chat_AddRaw("&eTeraCota Client: &cCoordinates must be decimals");
 		return;
 	}
 
@@ -702,27 +708,19 @@ static void TeleportCommand_Execute(const cc_string* args, int argsCount) {
 
 static struct ChatCommand TeleportCommand = {
 	"TP", TeleportCommand_Execute,
-	0, /* <-- Флаг был изменен на 0, чтобы команда работала везде */
+	0, 
 	{
 		"&a/client tp [x y z]",
 		"&eMoves you to the given coordinates.",
 	}
 };
 
-
 /*########################################################################################################################*
 *------------------------------------------------------BlockEditCommand----------------------------------------------------*
 *#########################################################################################################################*/
 static cc_bool BlockEditCommand_GetInt(const cc_string* str, const char* name, int* value, int min, int max) {
-	if (!Convert_ParseInt(str, value)) {
-		Chat_Add1("&eBlockEdit: &e%c must be an integer", name);
-		return false;
-	}
-
-	if (*value < min || *value > max) {
-		Chat_Add3("&eBlockEdit: &e%c must be between %i and %i", name, &min, &max);
-		return false;
-	}
+	if (!Convert_ParseInt(str, value)) return false;
+	if (*value < min || *value > max) return false;
 	return true;
 }
 
@@ -733,12 +731,8 @@ static cc_bool BlockEditCommand_GetTexture(const cc_string* str, int* tex) {
 static cc_bool BlockEditCommand_GetCoords(const cc_string* str, Vec3* coords) {
 	cc_string parts[3];
 	IVec3 xyz;
-
 	int numParts = String_UNSAFE_Split(str, ' ', parts, 3);
-	if (numParts != 3) {
-		Chat_AddRaw("&eBlockEdit: &c3 values are required for a coordinate (X Y Z)");
-		return false;
-	}
+	if (numParts != 3) return false;
 
 	if (!BlockEditCommand_GetInt(&parts[0], "X coord", &xyz.x, -127, 127)) return false;
 	if (!BlockEditCommand_GetInt(&parts[1], "Y coord", &xyz.y, -127, 127)) return false;
@@ -752,19 +746,13 @@ static cc_bool BlockEditCommand_GetCoords(const cc_string* str, Vec3* coords) {
 
 static cc_bool BlockEditCommand_GetBool(const cc_string* str, const char* name, cc_bool* value) {
 	if (String_CaselessEqualsConst(str, "true") || String_CaselessEqualsConst(str, "yes")) {
-		*value = true;
-		return true;
+		*value = true; return true;
 	}
-
 	if (String_CaselessEqualsConst(str, "false") || String_CaselessEqualsConst(str, "no")) {
-		*value = false;
-		return true;
+		*value = false; return true;
 	}
-
-	Chat_Add1("&eBlockEdit: &e%c must be either &ayes &eor &ano", name);
 	return false;
 }
-
 
 static void BlockEditCommand_Execute(const cc_string* args, int argsCount__) {
 	cc_string parts[3];
@@ -777,110 +765,69 @@ static void BlockEditCommand_Execute(const cc_string* args, int argsCount__) {
 	if (String_CaselessEqualsConst(args, "properties")) {
 		Chat_AddRaw("&eEditable block properties:");
 		Chat_AddRaw("&a  name &e- Sets the name of the block");
-		Chat_AddRaw("&a  all &e- Sets textures on all six sides of the block");
-		Chat_AddRaw("&a  sides &e- Sets textures on four sides of the block");
-		Chat_AddRaw("&a  left/right/front/back/top/bottom &e- Sets one texture");
-		Chat_AddRaw("&a  collide &e- Sets collision mode of the block");
-		Chat_AddRaw("&a  drawmode &e- Sets draw mode of the block");
-		Chat_AddRaw("&a  min/max &e- Sets min/max corner coordinates of the block");
-		Chat_AddRaw("&eSee &a/client blockedit properties 2 &efor more properties");
-		return;
-	}
-	if (String_CaselessEqualsConst(args, "properties 2")) {
-		Chat_AddRaw("&eEditable block properties (page 2):");
-		Chat_AddRaw("&a  walksound &e- Sets walk/step sound of the block");
-		Chat_AddRaw("&a  breaksound &e- Sets break sound of the block");
-		Chat_AddRaw("&a  fullbright &e- Sets whether the block is fully lit");
-		Chat_AddRaw("&a  blockslight &e- Sets whether the block stops light");
 		return;
 	}
 
 	argsCount = String_UNSAFE_Split(args, ' ', parts, 3);
-	if (argsCount < 3) {
-		Chat_AddRaw("&eBlockEdit: &eThree arguments required &e(See &a/client help blockedit&e)");
-		return;
-	}
+	if (argsCount < 3) return;
 
 	block = Block_Parse(&parts[0]);
-	if (block == -1) {
-		Chat_Add1("&eBlockEdit: &c\"%s\" is not a valid block name or ID", &parts[0]);
-		return;
-	}
+	if (block == -1) return;
 
-	/* TODO: Redo as an array */
 	prop  = &parts[1];
 	value = &parts[2];
 	if (String_CaselessEqualsConst(prop, "name")) {
 		Block_SetName(block, value);
 	} else if (String_CaselessEqualsConst(prop, "all")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_SetSide(v, block);
 		Block_Tex(block, FACE_YMAX) = v;
 		Block_Tex(block, FACE_YMIN) = v;
 	} else if (String_CaselessEqualsConst(prop, "sides")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_SetSide(v, block);
 	} else if (String_CaselessEqualsConst(prop, "left")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_XMIN) = v;
 	} else if (String_CaselessEqualsConst(prop, "right")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_XMAX) = v;
 	} else if (String_CaselessEqualsConst(prop, "bottom")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_YMIN) = v;
 	}  else if (String_CaselessEqualsConst(prop, "top")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_YMAX) = v;
 	} else if (String_CaselessEqualsConst(prop, "front")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_ZMIN) = v;
 	} else if (String_CaselessEqualsConst(prop, "back")) {
 		if (!BlockEditCommand_GetTexture(value, &v)) return;
-
 		Block_Tex(block, FACE_ZMAX) = v;
 	} else if (String_CaselessEqualsConst(prop, "collide")) {
 		if (!BlockEditCommand_GetInt(value, "Collide mode", &v, 0, COLLIDE_CLIMB)) return;
-
 		Blocks.Collide[block] = v;
 	} else if (String_CaselessEqualsConst(prop, "drawmode")) {
 		if (!BlockEditCommand_GetInt(value, "Draw mode", &v, 0, DRAW_SPRITE)) return;
-
 		Blocks.Draw[block] = v;
 	} else if (String_CaselessEqualsConst(prop, "min")) {
 		if (!BlockEditCommand_GetCoords(value, &coords)) return;
-
 		Blocks.MinBB[block] = coords;
 	} else if (String_CaselessEqualsConst(prop, "max")) {
 		if (!BlockEditCommand_GetCoords(value, &coords)) return;
-
 		Blocks.MaxBB[block] = coords;
 	} else if (String_CaselessEqualsConst(prop, "walksound")) {
 		if (!BlockEditCommand_GetInt(value, "Sound", &v, 0, SOUND_COUNT - 1)) return;
-
 		Blocks.StepSounds[block] = v;
 	} else if (String_CaselessEqualsConst(prop, "breaksound")) {
 		if (!BlockEditCommand_GetInt(value, "Sound", &v, 0, SOUND_COUNT - 1)) return;
-
 		Blocks.DigSounds[block]  = v;
 	} else if (String_CaselessEqualsConst(prop, "fullbright")) {
 		if (!BlockEditCommand_GetBool(value, "Full brightness", &b))  return;
-		//TODO: Fix this, brightness isn't just a bool anymore
 		Blocks.Brightness[block] = b;
 	} else if (String_CaselessEqualsConst(prop, "blockslight")) {
 		if (!BlockEditCommand_GetBool(value, "Blocks light", &b)) return;
-
 		Blocks.BlocksLight[block] = b;
-	} else {
-		Chat_Add1("&eBlockEdit: &eUnknown property %s &e(See &a/client help blockedit&e)", prop);
-		return;
 	}
 
 	Block_DefineCustom(block, false);
@@ -892,11 +839,8 @@ static struct ChatCommand BlockEditCommand = {
 	{
 		"&a/client blockedit [block] [property] [value]",
 		"&eEdits the given property of the given block",
-		"&a/client blockedit properties",
-		"&eLists the editable block properties",
 	}
 };
-
 
 /*########################################################################################################################*
 *------------------------------------------------------Commands component-------------------------------------------------*
@@ -916,9 +860,10 @@ static void OnInit(void) {
 	Commands_Register(&CuboidCommand);
 	Commands_Register(&ReplaceCommand);
 	
-	/* Регистрация новых глобальных команд */
 	Commands_Register(&FlyCommand);
 	Commands_Register(&SpeedCommand);
+	Commands_Register(&NoclipCommand);
+	Commands_Register(&FastBreakCommand);
 	Commands_Register(&GiveCommand);
 }
 
